@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>渡口生态人文地图</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: #1a3c2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            aspect-ratio: 4 / 3; /* ← 改成你地图图片的宽高比 */
+        }
+        .map-bg {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image: url('map.jpg'); /* ← 改成你的地图图片文件名 */
+            background-size: cover;
+            background-position: center;
+            border-radius: 12px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+        }
+        .marker {
+            position: absolute;
+            width: 28px; height: 28px;
+            background: #e74c3c;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pulse 2s infinite;
+            z-index: 10;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .marker:hover, .marker:active {
+            background: #c0392b;
+            transform: translate(-50%, -50%) scale(1.3);
+            z-index: 20;
+        }
+        .marker::after {
+            content: '';
+            position: absolute;
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            background: rgba(231,76,60,0.4);
+            animation: ripple 2s infinite;
+            z-index: -1;
+        }
+        @keyframes ripple {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+            50% { box-shadow: 0 2px 20px rgba(231,76,60,0.7); }
+        }
+        .marker .label {
+            position: absolute;
+            top: 34px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.75);
+            color: #fff;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+        .modal-overlay.active { display: flex; }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .modal-card {
+            background: #fff;
+            border-radius: 16px;
+            max-width: 420px;
+            width: 92%;
+            max-height: 75vh;
+            overflow-y: auto;
+            padding: 24px;
+            animation: slideUp 0.35s ease;
+            position: relative;
+            -webkit-overflow-scrolling: touch;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(40px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .modal-card .close-btn {
+            position: absolute;
+            top: 12px; right: 16px;
+            font-size: 26px;
+            color: #999;
+            cursor: pointer;
+            background: none;
+            border: none;
+            line-height: 1;
+        }
+        .modal-card h2 {
+            font-size: 20px;
+            color: #1a3c2e;
+            margin-bottom: 6px;
+            padding-right: 30px;
+        }
+        .modal-card .tag {
+            display: inline-block;
+            background: #e8f5e9;
+            color: #2e7d32;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+        }
+        .modal-card p {
+            font-size: 14px;
+            line-height: 1.75;
+            color: #444;
+            margin-bottom: 10px;
+        }
+        .modal-card .section-title {
+            font-weight: bold;
+            color: #1a3c2e;
+            font-size: 14px;
+            margin-top: 14px;
+            margin-bottom: 4px;
+            border-left: 3px solid #27ae60;
+            padding-left: 8px;
+        }
+        .page-title {
+            position: absolute;
+            top: -50px; left: 0;
+            width: 100%;
+            text-align: center;
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            z-index: 5;
+        }
+        .hint {
+            position: absolute;
+            bottom: -40px; left: 0;
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            z-index: 5;
+        }
+        @media (max-width: 480px) {
+            .marker { width: 22px; height: 22px; border-width: 2px; }
+            .marker .label { font-size: 10px; top: 28px; }
+            .page-title { top: -40px; font-size: 16px; }
+            .modal-card { padding: 18px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="mapContainer">
+        <div class="map-bg"></div>
+        <div class="page-title">🌊 渡口生态人文地图</div>
+
+        <!-- ========== 12个渡口标记点 ========== -->
+               <div class="marker" data-index="0" style="left: 23.61%; top: 36.07%;">
+            <span class="label">弹子石</span>
+        </div>
+        <div class="marker" data-index="1" style="left: 35.00%; top: 50.00%;">
+            <span class="label">寸滩</span>
+        </div>
+        <div class="marker" data-index="2" style="left: 50.00%; top: 30.00%;">
+            <span class="label">瓜洲</span>
+        </div>
+        <div class="marker" data-index="3" style="left: 65.00%; top: 45.00%;">
+            <span class="label">汉阳门</span>
+        </div>
+        <div class="marker" data-index="4" style="left: 75.00%; top: 60.00%;">
+            <span class="label">长寿岛</span>
+        </div>
+        <div class="marker" data-index="5" style="left: 30.00%; top: 70.00%;">
+            <span class="label">太平渡</span>
+        </div>
+        <div class="marker" data-index="6" style="left: 55.00%; top: 75.00%;">
+            <span class="label">大昌</span>
+        </div>
+        <div class="marker" data-index="7" style="left: 70.00%; top: 25.00%;">
+            <span class="label">白石江</span>
+        </div>
+        <div class="marker" data-index="8" style="left: 15.00%; top: 55.00%;">
+            <span class="label">猎德</span>
+        </div>
+        <div class="marker" data-index="9" style="left: 10.94%; top: 12.25%;">
+            <span class="label">龙门</span>
+        </div>
+        <div class="marker" data-index="10" style="left: 80.00%; top: 40.00%;">
+            <span class="label">会兴</span>
+        </div>
+        <div class="marker" data-index="11" style="left: 40.00%; top: 85.00%;">
+            <span class="label">临北</span>
+        </div>
+        <!-- ======================================= -->
+
+        <div class="hint">👆 点击红点查看渡口详情</div>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-card">
+            <button class="close-btn" id="closeBtn">&times;</button>
+            <h2 id="modalTitle"></h2>
+            <span class="tag" id="modalTag"></span>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const ferryData = [
+            {
+                name: `弹子石渡口`,
+                tag: `商贸关隘遗址渡口`,
+                intro: `位于长江干流南岸，重庆市南岸区南滨路，正对朝天门，处长江与嘉陵江两江交汇处，被誉为重庆最早的渡江码头。`,
+                ecology: `南滨路滨江生态景观带环绕，江岸绿廊与城市景观带交织，形成两江交汇处"码头—老街共生"的文旅活化样本。`,
+                culture: `传大禹治水归途经此，涂山氏化石诞启，名"诞子石"；清代为盐运商埠，1891年重庆开埠，1938年轮渡开航，呈现缆车、吊脚楼、"棒棒军"等传统码头风貌；弹子石老街2018年重建开街（国家4A景区），转型"两江小渡"观光轮渡，民生通勤与文旅观光双线并行。`
+            },
+            {
+                name: `寸滩古渡`,
+                tag: `淹没遗址纪念渡口`,
+                intro: `位于长江干流北岸，重庆市江北区寸滩街道，长江与肖家河交汇处，明清有"西南第一渡口"之称。`,
+                ecology: `至善桥（约170余年）、观音阁等古迹尚存；寸滩已建为重庆最大保税港区，老街列入"寸滩传统风貌区"。`,
+                culture: `因江中石梁形如秤杆得名"秤滩"，方言谐音为"寸滩"；清嘉庆年间建场镇，为川盐集散地；乾隆年间袁锡夔诗"小艇摇明月，停桡得寸滩"；抗战时期建成大后方最大修造船厂；老街基本拆迁，仅剩约20户留守，面临拆迁改造。`
+            },
+            {
+                name: `瓜洲古渡`,
+                tag: `淹没遗址纪念渡口`,
+                intro: `位于长江干流北岸，江苏省扬州市邗江区瓜洲镇，长江与古运河交汇处，唐宋漕运要冲、古运河入江门户。`,
+                ecology: `建有瓜洲古渡公园、古渡风景区，纳入大运河国家文化公园与长江国家文化公园建设。`,
+                culture: `晋代长江沙洲淤积成"瓜"字形陆洲得名；王安石"京口瓜洲一水间"、白居易"汴水流，泗水流，流到瓜洲古渡头"；康乾二帝南巡驻跸；明设同知署、漕运府；清光绪二十一年（1895）古瓜洲城因长江"坍江"全部沉入江底，今瓜洲镇为1964年重建。`
+            },
+            {
+                name: `汉阳门码头`,
+                tag: `库区迁建民生渡口`,
+                intro: `位于长江干流南岸，湖北省武汉市武昌区临江大道（中华路），隔江对汉阳，原武昌古城九门之一。`,
+                ecology: `武昌江滩滨水绿带环绕，承载武汉"江城"意象。`,
+                culture: `南宋已有记载；明万历二年（1574）设"扬子江渡"直达汉口；1900年冯启钧创办"利记"轮渡开辟汉口—汉阳门航线，为近代中国轮渡先声；1956年毛泽东在此水域横渡长江，写下《水调歌头·游泳》；民谣《汉阳门花园》承载城市集体记忆；2023年改造为可停靠5000吨级游轮的邮轮母港。`
+            },
+            {
+                name: `牛首长寿岛渡口`,
+                tag: `库区迁建民生渡口`,
+                intro: `位于长江支流汉江干流（牛首段），湖北省襄阳市樊城区牛首镇—长寿岛村，汉江江心洲上。`,
+                ecology: `岛上为长寿岛国家湿地公园，湿地近2500公顷，栖息中华秋沙鸭、白额雁、鸳鸯等珍稀鸟类，生态极佳，是"一岛一渡"民生渡口与湿地生态共生的样本。`,
+                culture: `长寿岛原名"中洲"，清咸丰七年（1857）已有农民上岛垦居；1968年批复设渡，2018年升级为汽车渡口，2023—2024年渡口提档升级；2026年因隆中大桥通车一度停运，为保障村民出行预计恢复通航。`
+            },
+            {
+                name: `太平渡`,
+                tag: `淹没遗址纪念渡口`,
+                intro: `位于长江支流赤水河上游，四川省泸州市古蔺县太平镇，赤水河与古蔺河交汇处。`,
+                ecology: `太平古镇保存完好，为中国历史文化名镇、国家4A景区（"赤水明珠"）。`,
+                culture: `1935年中央红军长征在此二渡（2月18—21日）、四渡（3月21—22日）赤水，是全程唯一往返两次的渡口、军委纵队主要渡河处，摆脱数十万敌军围追堵截，四渡赤水被称为长征"得意之笔"；建有红军长征四渡赤水太平渡陈列馆；2013年公布为全国重点文物保护单位。`
+            },
+            {
+                name: `大昌渡口`,
+                tag: `库区迁建民生渡口`,
+                intro: `位于长江支流大宁河（小三峡段），重庆市巫山县大昌镇，始建于晋，距今1700余年。`,
+                ecology: `三峡蓄水后原址沉入大宁河水下；2002—2005年全城按原貌整体搬迁至8公里外西包岭大昌湖复建。`,
+                culture: `素有"袖珍古城"之称，是三峡地区唯一保存完整的古城，为大宁河重要码头（药材、山货集散地）；30栋古民居、3座城门、2座古庙整体迁移，被誉为"世界古民居保护史上的奇迹"；现为旅游古镇，2023年巫山—大昌高速通车。`
+            },
+            {
+                name: `白石江`,
+                tag: `淹没遗址纪念渡口`,
+                intro: `位于珠江上游南盘江支流白石江，云南省曲靖市城北，明初白石江之战古战场。`,
+                ecology: `因数百年垦殖水位下降，今日白石江已缩窄为宽约10余米的平静水流；2007年建成白石江公园，园内设8座大型历史主题雕塑群，形成露天历史文化长廊，为市民休闲生态绿地。`,
+                culture: `明洪武十四年（1381）十二月白石江之战，明军傅友德、沐英率30万大军大破元梁王10万精兵，平定云南、终结西南600余年割据，是明朝统一全国的关键战役；相传三国时亦为诸葛亮七擒孟获古战场之一。`
+            },
+            {
+                name: `猎德古渡`,
+                tag: `淹没遗址纪念渡口`,
+                intro: `位于珠江广州段，广东省广州市天河区猎德村，猎德涌入江处，宋代已设渡口。`,
+                ecology: `现为猎德涌碧道，重现"猎德通津、玉带缠腰"，形成"猎德八韵"景致。`,
+                culture: `据宋代《广州府图经》记载，猎德涌宋代已设渡口；南宋时珠江边设码头，商船多停泊于此；1955年开凿猎德路，1985年广州大桥通车后渡口衰落；保留龙舟文化，猎德村为广州城中村改造样板。`
+            },
+            {
+                name: `龙门古渡`,
+                tag: `商贸关隘遗址渡口`,
+                intro: `位于黄河干流晋陕峡谷南端出口，山西省运城市河津市禹门口，与陕西韩城隔河相望。`,
+                ecology: `晋陕大峡谷生态景观，黄河一号旅游公路串联；黄河龙门景区2022年评为国家4A景区。`,
+                culture: `"禹凿龙门"传说发生地、大禹治水劈山导河处；"鲤鱼跃龙门"典故发源地（《辛氏三秦记》《水经注》）；古龙门渡为秦晋交通枢纽与兵家必争之地、五省区通衢与漕运要地，承载抗战红色记忆；黄河最窄处约40米，现铁路、公路多桥并架。`
+            },
+            {
+                name: `会兴渡`,
+                tag: `商贸关隘遗址渡口 · 黄河三大古渡之一`,
+                intro: `位于黄河干流三门峡段，河南省三门峡市湖滨区会兴镇黄河南岸，与山西平陆茅津渡隔河相望。`,
+                ecology: `现为三门峡城市滨水休闲区（"三门峡的后花园"），游人如织。`,
+                culture: `古黄河津渡，因北岸古茅戎地得名"茅津"，有"铁码头"之称，为黄河三大古渡之一；商时始设渡口，汉设大阳关，北魏郦道元《水经注》有载；为晋盐入豫第一站、豫西晋南物资交流水上通道与兵家必争之地；"茅津夜渡"典故流传；三门峡黄河大桥修建后航运没落。`
+            },
+            {
+                name: `临北古渡口`,
+                tag: `淹没遗址纪念渡口`,
+                intro: `位于淮河干流，安徽省蚌埠市五河县临北回族乡临北村淮河北岸，与凤阳临淮老街隔河相望。`,
+                ecology: `淮河流域唯一科学发掘出土的保存完好的古代码头遗址，正实施迁移保护工程。`,
+                culture: `明清时期淮河重要渡口与商贸码头，旁有明末清初临北清真寺旧址；20世纪80年代五蚌公路开通后轮渡取消；2008年淮河洪水淹没老街；2020年11月考古发现，发掘出清代石驳岸、石阶码头、道路与房址18座，出土瓷器、铜币等近2000件。`
+            }
+        ];
+
+        const modalOverlay = document.getElementById('modalOverlay');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalTag = document.getElementById('modalTag');
+        const modalContent = document.getElementById('modalContent');
+        const closeBtn = document.getElementById('closeBtn');
+        const markers = document.querySelectorAll('.marker');
+
+        markers.forEach(marker => {
+            marker.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const index = parseInt(this.dataset.index);
+                const data = ferryData[index];
+                modalTitle.textContent = data.name;
+                modalTag.textContent = data.tag;
+                modalContent.innerHTML = `
+                    <p>${data.intro}</p>
+                    <div class="section-title">🌿 生态特色</div>
+                    <p>${data.ecology}</p>
+                    <div class="section-title">📜 人文底蕴</div>
+                    <p>${data.culture}</p>
+                `;
+                modalOverlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+        });
+
+        function closeModal() {
+            modalOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        closeBtn.addEventListener('click', closeModal);
+        modalOverlay.addEventListener('click', function(e) {
+            if (e.target === modalOverlay) closeModal();
+        });
+        let touchStartY = 0;
+        modalOverlay.addEventListener('touchstart', function(e) {
+            touchStartY = e.touches[0].clientY;
+        });
+        modalOverlay.addEventListener('touchend', function(e) {
+            const diff = e.changedTouches[0].clientY - touchStartY;
+            if (diff > 80) closeModal();
+        });
+    </script>
+</body>
+</html>
